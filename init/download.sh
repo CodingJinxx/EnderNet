@@ -13,6 +13,9 @@ fi
 
 echo "Downloading modpack zip from $MODPACK_URL..."
 
-wget --user-agent="Mozilla/5.0" -O $MODPACK_PATH "$MODPACK_URL"
+TMP=/tmp/tmp.zip
+wget --user-agent="Mozilla/5.0" -O $TMP "$MODPACK_URL"
+mv $TMP $MODPACK_PATH
+touch /modpacks/done.marker
 
 echo "Download complete."

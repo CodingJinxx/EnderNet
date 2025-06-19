@@ -1,4 +1,4 @@
-$ports = @(25565);
+$ports = @(25565, 24454);
 
 $wslAddress = wsl hostname -I
 
@@ -23,4 +23,6 @@ $portsStr = $ports -join ",";
 
 Invoke-Expression "Remove-NetFireWallRule -DisplayName $fireWallDisplayName";
 Invoke-Expression "New-NetFireWallRule -DisplayName $fireWallDisplayName -Direction Outbound -LocalPort $portsStr -Action Allow -Protocol TCP";
+Invoke-Expression "New-NetFireWallRule -DisplayName $fireWallDisplayName -Direction Outbound -LocalPort $portsStr -Action Allow -Protocol UDP";
 Invoke-Expression "New-NetFireWallRule -DisplayName $fireWallDisplayName -Direction Inbound -LocalPort $portsStr -Action Allow -Protocol TCP";
+Invoke-Expression "New-NetFireWallRule -DisplayName $fireWallDisplayName -Direction Inbound -LocalPort $portsStr -Action Allow -Protocol UDP";

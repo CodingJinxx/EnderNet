@@ -12,9 +12,9 @@ if [ -z "$ZIP_PATH" ]; then
 fi
 
 
-while [ ! -f $ZIP_PATH ]; do
+while [ ! -f /downloads/done.marker ]; do
     echo 'Waiting for modpack.zip...';
-    sleep 2;
+    sleep 10;
 done;
 
 if [ ! -f "$ZIP_PATH" ]; then
@@ -22,7 +22,31 @@ if [ ! -f "$ZIP_PATH" ]; then
   exit 2
 fi
 
-unzip -o $ZIP_PATH -d /opt/app;
+MANIFEST_TMP="/tmp/manifest.json"
+EXISTING_MANIFEST="/opt/app/manifest.json"
+if unzip -p "$ZIP_PATH" manifest.json > "$MANIFEST_TMP"; then
+  incoming_version=$(jq -r '.serverPackCreatorVersion' "$MANIFEST_TMP")
+else
+  echo "❌ Could not read manifest.json from ZIP — forcing unzip."
+  unzip -o "$ZIP_PATH" -d /opt/app
+  exit 0
+fi
+
+# Try to read existing installed version
+if [ -f "$EXISTING_MANIFEST" ]; then
+  existing_version=$(jq -r '.serverPackCreatorVersion' "$EXISTING_MANIFEST")
+else
+  echo "🆕 No existing manifest found — assuming first install"
+  existing_version=""
+fi
+
+# Compare versions
+if [ "$incoming_version" != "$existing_version" ]; then
+  echo "📦 Modpack version changed: '$existing_version' → '$incoming_version'"
+  unzip -o "$ZIP_PATH" -d /opt/app
+else
+  echo "✅ Modpack version unchanged ($incoming_version), skipping unzip."
+fi
 
 if [ -d "/overrides" ]; then
   echo "🧩 Copying overrides into /opt/app..."
@@ -36,16 +60,55 @@ sed -i 's/read -r WHY/WHY="Yes"/' /opt/app/start.sh
 sed -i 's/read -r ANSWER/ANSWER="I agree"/' /opt/app/start.sh
 sed -i 's/^SKIP_JAVA_CHECK=.*/SKIP_JAVA_CHECK=true/' /opt/app/variables.txt || echo "SKIP_JAVA_CHECK=true" >> /opt/app/variables.txt
 
-# Run the modpack's start.sh with automatic answers
-if [ -f /opt/app/start.sh ]; then
-  echo "🚀 Running start.sh with auto inputs..."
-
-  bash /opt/app/start.sh
+PROPERTIES_FILE="/opt/app/server.properties"
+if [ -f "$PROPERTIES_FILE" ]; then
+  echo "🔧 Configuring RCON in server.properties..."
+  sed -i 's/^enable-rcon=.*/enable-rcon=true/' "$PROPERTIES_FILE"
+  sed -i "s/^rcon.password=.*/rcon.password=${RCON_PASSWORD:-changeme}/" "$PROPERTIES_FILE"
+  sed -i 's/^rcon.port=.*/rcon.port=25575/' "$PROPERTIES_FILE"
 else
-  echo "⚠️  No start.sh found in /opt/app"
+  echo "⚠️  server.properties not found at $PROPERTIES_FILE"
 fi
 
-# Optionally start your Java app after unzipping
-# java -jar /opt/app/yourapp.jar
+socat TCP4-LISTEN:$CONTROL_PORT,reuseaddr,fork SYSTEM:"bash /control.sh" &
 
-exec "$@"
+# Wait for server.properties to appear and configure it only once
+PROPERTIES_FILE="/opt/app/server.properties"
+CONFIG_FLAG="/opt/app/.rcon_config_done"
+
+# Wait for the file to exist
+while [ ! -f "$PROPERTIES_FILE" ]; do
+  echo "⏳ Waiting for server.properties to be generated..."
+  sleep 2
+done
+
+if [ ! -f "$CONFIG_FLAG" ]; then
+  echo "🔧 Configuring server.properties and start scripts..."
+
+  sed -i 's/\r$//' /opt/app/variables.txt
+  sed -i 's/read -r WHY/WHY="Yes"/' /opt/app/start.sh
+  sed -i 's/read -r ANSWER/ANSWER="I agree"/' /opt/app/start.sh
+  sed -i 's/^SKIP_JAVA_CHECK=.*/SKIP_JAVA_CHECK=true/' /opt/app/variables.txt || echo "SKIP_JAVA_CHECK=true" >> /opt/app/variables.txt
+
+  sed -i 's/^enable-rcon=.*/enable-rcon=true/' "$PROPERTIES_FILE"
+  sed -i "s/^rcon.password=.*/rcon.password=${RCON_PASSWORD:-changeme}/" "$PROPERTIES_FILE"
+  sed -i 's/^rcon.port=.*/rcon.port=25575/' "$PROPERTIES_FILE"
+
+  touch "$CONFIG_FLAG"
+  echo "✅ Configuration complete."
+else
+  echo "✅ Configuration already applied. Skipping."
+fi
+
+# Wait for world directory to exist before writing timestamp
+WORLD_PATH="/opt/app/world"
+echo "⏳ Waiting for world directory to exist..."
+while [ ! -d "$WORLD_PATH" ]; do
+  sleep 2
+done
+
+echo "📌 World directory found. Starting timestamp loop."
+while true; do
+  date +%s > "$WORLD_PATH/timestamp.txt"
+  sleep 60
+done
