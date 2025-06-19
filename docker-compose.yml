@@ -1,0 +1,55 @@
+services:
+  modpack-init:
+    build: ./init
+    volumes:
+      - ./modpacks:/modpacks
+    environment:
+      - MODPACK_URL=https://edge.forgecdn.net/files/6658/547/Create-Ultimate%20Selection%20Serverpack%20MC%201.20.1-12.6.0.zip
+    command: ["sh", "/init/download.sh"]
+    restart: "no"
+  modpack-runner:
+    build: ./minecraft
+    environment:
+      MODPACK_ZIP: modpack.zip  # <- Change this if needed
+      # GIT_REPO: git@github.com:CodingJinxx/EnderNetBackups.git
+      # WORLD_ID: gooners  
+      # BACKUP_INTERVAL_H: 1   
+    volumes:
+      - ./modpacks:/downloads         # Mount the local downloads folder
+      - ./overrides:/overrides
+      - ./data:/opt/app
+    ports:
+      - 25565:25565
+  ddns-updater:
+    image: qmcgaw/ddns-updater
+    container_name: ddns-updater
+    network_mode: bridge
+    ports:
+      - 8000:8000/tcp
+    volumes:
+      - ./ddns:/updater/data
+    environment:
+      - CONFIG=
+      - PERIOD=5m
+      - UPDATE_COOLDOWN_PERIOD=5m
+      - PUBLICIP_FETCHERS=all
+      - PUBLICIP_HTTP_PROVIDERS=all
+      - PUBLICIPV4_HTTP_PROVIDERS=all
+      - PUBLICIPV6_HTTP_PROVIDERS=all
+      - PUBLICIP_DNS_PROVIDERS=all
+      - PUBLICIP_DNS_TIMEOUT=3s
+      - HTTP_TIMEOUT=10s
+
+      # Web UI
+      - LISTENING_ADDRESS=:8000
+      - ROOT_URL=/
+
+      # Backup
+      - BACKUP_PERIOD=0 # 0 to disable
+      - BACKUP_DIRECTORY=/updater/data
+
+      # Other
+      - LOG_LEVEL=info
+      - LOG_CALLER=hidden
+      - SHOUTRRR_ADDRESSES=
+    restart: always
