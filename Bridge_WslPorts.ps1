@@ -1,4 +1,4 @@
-$ports = @(25565);
+$ports = @(25565, 24454);
 
 $wslAddress = wsl hostname -I
 

@@ -11,15 +11,36 @@ services:
     build: ./minecraft
     environment:
       MODPACK_ZIP: modpack.zip  # <- Change this if needed
-      # GIT_REPO: git@github.com:CodingJinxx/EnderNetBackups.git
-      # WORLD_ID: gooners  
-      # BACKUP_INTERVAL_H: 1   
+      RCON_PASSWORD: password
+      CONTROL_PORT: 8080
     volumes:
       - ./modpacks:/downloads         # Mount the local downloads folder
       - ./overrides:/overrides
       - ./data:/opt/app
     ports:
       - 25565:25565
+      - 24454:24454
+      - 8080:8080
+  backup-service:
+    build: ./backup  # Directory where Dockerfile, backup.sh, entrypoint.sh are located
+    environment:
+      WORLD_ID: gooners
+      BACKUP_INTERVAL_H: 2
+      DEBUG_CRON: 0
+      GIT_REPO: git@github.com:CodingJinxx/EnderNetBackups.git
+      RCON_HOST: modpack-runner
+      RCON_PASSWORD: password
+      RCON_PORT: 25575
+      CONTROL_HOST: modpack-runner
+      CONTROL_PORT: 8080
+    volumes:
+      - ./data:/data                    # Minecraft world directory
+      - ./world_backups:/backups                # Where zipped backups are staged
+      - ./ssh:/ssh                      # SSH private key for Git access
+      - ./replaced_worlds:/replaced_worlds  # Optional: store replaced worlds
+    depends_on:
+      - modpack-runner
+    restart: no
   ddns-updater:
     image: qmcgaw/ddns-updater
     container_name: ddns-updater
