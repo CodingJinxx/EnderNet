@@ -19,7 +19,7 @@ services:
       - ./data:/opt/app
     ports:
       - 25565:25565
-      - 24454:24454
+      - 24454:24454/udp
       - 8080:8080
   backup-service:
     build: ./backup  # Directory where Dockerfile, backup.sh, entrypoint.sh are located
@@ -27,6 +27,7 @@ services:
       WORLD_ID: gooners
       BACKUP_INTERVAL_H: 2
       # DEBUG_CRON: 0
+      NO_RESTORE: true
       GIT_REPO: git@github.com:CodingJinxx/EnderNetBackups.git
       RCON_HOST: modpack-runner
       RCON_PASSWORD: password

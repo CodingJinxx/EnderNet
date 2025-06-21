@@ -1,6 +1,7 @@
 FROM debian:bookworm-slim
 
 ENV BACKUP_INTERVAL_H=6
+ENV NO_RESTORE=false
 
 RUN apt-get update && \
     apt-get install -y git zip curl cron openssh-client build-essential dos2unix && \

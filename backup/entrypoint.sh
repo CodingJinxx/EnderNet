@@ -87,29 +87,35 @@ else
   git pull
 fi
 
-# Restore the latest world if necessary
-LATEST_FILE=$(ls -1 "$REPO_DIR/${WORLD_ID}"-*.zip 2>/dev/null | sort -r | head -n 1 || true)
 
-if [ -n "$LATEST_FILE" ]; then
-  if [ ! -d "$DATA_DIR/world" ]; then
-    echo "[INIT] No world folder found. Restoring from latest backup: $LATEST_FILE"
-    unzip -o "$LATEST_FILE" -d "$DATA_DIR"
-  else
-    LATEST_TIMESTAMP=$(unzip -p "$LATEST_FILE" world/timestamp.txt 2>/dev/null || echo "0")
-    CURRENT_TIMESTAMP=$(cat "$DATA_DIR/world/timestamp.txt" 2>/dev/null || echo "0")
 
-    if [ "$LATEST_TIMESTAMP" -gt "$CURRENT_TIMESTAMP" ]; then
-      echo "[INIT] Backup is newer. Replacing local world."
-      mkdir -p "$REPLACED_DIR"
-      cp -r "$DATA_DIR/world" "$REPLACED_DIR/world-$CURRENT_TIMESTAMP"
-      rm -rf "$DATA_DIR/world"
-      unzip "$LATEST_FILE" -d "$DATA_DIR"
+if [[ "${NO_RESTORE,,}" != "true" ]]; then
+  # Restore the latest world if necessary
+  LATEST_FILE=$(ls -1 "$REPO_DIR/${WORLD_ID}"-*.zip 2>/dev/null | sort -r | head -n 1 || true)
+
+  if [ -n "$LATEST_FILE" ]; then
+    if [ ! -d "$DATA_DIR/world" ]; then
+      echo "[INIT] No world folder found. Restoring from latest backup: $LATEST_FILE"
+      unzip -o "$LATEST_FILE" -d "$DATA_DIR"
     else
-      echo "[INIT] Local world is up to date. No restore needed."
+      LATEST_TIMESTAMP=$(unzip -p "$LATEST_FILE" world/timestamp.txt 2>/dev/null || echo "0")
+      CURRENT_TIMESTAMP=$(cat "$DATA_DIR/world/timestamp.txt" 2>/dev/null || echo "0")
+
+      if [ "$LATEST_TIMESTAMP" -gt "$CURRENT_TIMESTAMP" ]; then
+        echo "[INIT] Backup is newer. Replacing local world."
+        mkdir -p "$REPLACED_DIR"
+        cp -r "$DATA_DIR/world" "$REPLACED_DIR/world-$CURRENT_TIMESTAMP"
+        rm -rf "$DATA_DIR/world"
+        unzip "$LATEST_FILE" -d "$DATA_DIR"
+      else
+        echo "[INIT] Local world is up to date. No restore needed."
+      fi
     fi
+  else
+    echo "[INIT] No backups found to restore."
   fi
 else
-  echo "[INIT] No backups found to restore."
+   echo "[INIT] NO_RESTORE=true — skipping any world restoration."
 fi
 
 for i in $(seq 1 $MAX_ATTEMPTS); do
