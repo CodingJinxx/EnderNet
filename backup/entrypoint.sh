@@ -4,11 +4,10 @@ set -euo pipefail
 
 CRON_FILE="/etc/cron.d/mc-backup"
 BACKUP_INTERVAL_H=${BACKUP_INTERVAL_H:-6}
-REPO_DIR="/gitrepo"
+REPO_DIR="/repo"
 DATA_DIR="/data"
 WORLD_ID=${WORLD_ID:-defaultworld}
 REPLACED_DIR="/replaced_worlds"
-CRON_FILE="/etc/cron.d/mc-backup"
 MAX_ATTEMPTS=50
 SLEEP_SECONDS=5
 
@@ -54,40 +53,15 @@ EOF
 chmod 0644 "$CRON_FILE"
 crontab "$CRON_FILE"
 
-# Generate SSH key if not present
-if [ ! -f /ssh/id_rsa ]; then
-  echo "🔐 Generating new SSH key..."
-  mkdir -p /ssh
-  ssh-keygen -t rsa -f /ssh/id_rsa -N ""
-  echo "⚠️  Add the following public key to your Git repo's deploy keys:"
-  cat /ssh/id_rsa.pub
-fi
-
-
-export GIT_SSH_COMMAND="ssh -i /ssh/id_rsa -o StrictHostKeyChecking=no"
-
-echo "🔍 Testing SSH connection to GitHub..."
-SSH_OUTPUT=$(ssh -i /ssh/id_rsa -o StrictHostKeyChecking=no -T git@github.com 2>&1 || true)
-echo "$SSH_OUTPUT"
-
-if echo "$SSH_OUTPUT" | grep -q "successfully authenticated"; then
-  echo "✅ Git SSH access looks good."
+if [[ "${BACKUP_TARGET,,}" == "git" ]]; then
+  echo "🔍 Initializing Git-based backup..."
+  /git_entrypoint.sh
+elif [[ "${BACKUP_TARGET,,}" == "sftp" ]]; then
+  echo "☁️ Initializing SFTP based backup..."
+  /sftp_entrypoint.sh
 else
-  echo "⚠️ Git SSH output did not match expected pattern."
-  echo "⚠️ Output was:"
-  echo "$SSH_OUTPUT"
-  echo "⚠️ Proceeding anyway assuming key was accepted."
+  echo "📁 BACKUP_TARGET set to '$BACKUP_TARGET'. Skipping known backup entrypoint handlers."
 fi
-
-# Clone or update the Git repo
-if [ ! -d "$REPO_DIR/.git" ]; then
-  git clone "$GIT_REPO" "$REPO_DIR"
-else
-  cd "$REPO_DIR"
-  git pull
-fi
-
-
 
 if [[ "${NO_RESTORE,,}" != "true" ]]; then
   # Restore the latest world if necessary
