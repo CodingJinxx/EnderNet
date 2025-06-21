@@ -9,7 +9,7 @@ SKIP_RCON=${SKIP_RCON:-false}
 WORLD_ID=${WORLD_ID:-defaultworld}
 TIMESTAMP=$(date +%s)
 BACKUP_NAME="${WORLD_ID}-${TIMESTAMP}.zip"
-REPO_DIR="/gitrepo"
+REPO_DIR="/repo"
 DATA_DIR="/data"
 BACKUP_DIR="/backups"
 REPLACED_DIR="/replaced_worlds"
@@ -17,15 +17,16 @@ RCON_HOST="${RCON_HOST:-modpack-runner}"
 RCON_PORT="${RCON_PORT:-25575}"
 RCON_PASSWORD="${RCON_PASSWORD:-password}"
 
-export GIT_SSH_COMMAND="ssh -i /ssh/id_rsa -o StrictHostKeyChecking=no"
-
-# Clone or update the Git repo
-if [ ! -d "$REPO_DIR/.git" ]; then
-  git clone "$GIT_REPO" "$REPO_DIR"
+if [[ "${BACKUP_TARGET,,}" == "git" ]]; then
+  echo "🔍 Pulling using Git"
+  /git_backup.sh pull
+elif [[ "${BACKUP_TARGET,,}" == "sftp" ]]; then
+  echo "☁️ Pulling Using SFTP"
+  /sftp_backup.sh pull
 else
-  cd "$REPO_DIR"
-  git pull
+  echo "📁 BACKUP_TARGET set to unknown BACKUP_TARGET: '$BACKUP_TARGET'.  Skipping pull."
 fi
+
 
 # Check if world has changed based on timestamp.txt
 cd $REPO_DIR
@@ -61,7 +62,6 @@ if [ "$SKIP_RCON" != "true" ]; then
   sleep 5
 fi
 
-
 sleep 5
 
 # Archive world safely
@@ -73,9 +73,19 @@ if [ "$SKIP_RCON" != "true" ]; then
   /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/save-on"
   /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/say Backup Complete"
 fi
-# Copy and push to Git
+
+# Copy to REPO_DIR
 cp "$BACKUP_DIR/$BACKUP_NAME" "$REPO_DIR"
 cd "$REPO_DIR"
-git add "$BACKUP_NAME"
-git commit -m "Backup $BACKUP_NAME"
-git push
+
+if [[ "${BACKUP_TARGET,,}" == "git" ]]; then
+  echo "🔍 Pushing using Git"
+  /git_backup.sh push
+elif [[ "${BACKUP_TARGET,,}" == "sftp" ]]; then
+  echo "☁️ Pushing Using SFTP"
+  /sftp_backup.sh push $LATEST_FILE
+else
+  echo "📁 BACKUP_TARGET set to unknown BACKUP_TARGET: '$BACKUP_TARGET'. Skipping push."
+fi
+
+
