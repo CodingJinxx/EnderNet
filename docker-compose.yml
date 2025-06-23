@@ -25,7 +25,7 @@ services:
     build: ./backup  # Directory where Dockerfile, backup.sh, entrypoint.sh are located
     environment:
       WORLD_ID: gooners
-      BACKUP_INTERVAL_H: 2
+      BACKUP_INTERVAL_H: 1
       # DEBUG_CRON: 0
       NO_RESTORE: true
       BACKUP_TARGET: sftp

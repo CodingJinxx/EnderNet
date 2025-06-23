@@ -44,7 +44,7 @@ if ! command -v sshpass >/dev/null 2>&1; then
 fi
 
 echo "🚀 Starting selective download to $REPO_DIR..."
-mkdir -p "$REPO_DIR"
+
 
 echo "📡 Getting list of remote files..."
 
@@ -53,55 +53,43 @@ raw_listing=$(sshpass -p "$SFTP_PASSWORD" \
   sftp -o StrictHostKeyChecking=no \
        -P "$SFTP_PORT" \
        "$SFTP_USER@$SFTP_HOST" <<-'EOF'
-    ls
+    ls -1 *.zip
     bye
 EOF
 )
 
-# (2) Extract only the filename column (last field)
-#     e.g. "-rw-r--r--    1 user group   12345 Jun 21 12:34 file.zip"
-#           becomes "file.zip"
-filenames=$(echo "$raw_listing" | awk '{print $NF}')
+# (3) Now raw_listing already has one filename per line, so just filter empties:
+REMOTE_FILES=$(echo "$raw_listing" | tail -n +2 \
+  | sed '/^[[:space:]]*$/d; $d')
 
-# (3) Filter to .zip files; if grep finds nothing, it returns exit code 1,
-#     so we OR it with true so our script doesn’t die, and yield an empty string.
-REMOTE_FILES=$(echo "$filenames" | grep -E '\.zip$' || true)
-
-
-# Check for obvious errors or missing output
-if [[ -z "$REMOTE_FILES" ]] || echo "$REMOTE_FILES" | grep -qE "Failure|Permission denied|Connection closed|ls"; then
-  echo "📭 No remote files found or failed to list remote directory."
+if [[ -z "$REMOTE_FILES" ]]; then
+  echo "📭 No remote .zip files found."
 else
   echo "🗂️ Remote files detected:"
   echo "$REMOTE_FILES"
 fi
 
 FILES_TO_DOWNLOAD=()
-
-# Parse file names safely
-while read -r line; do
-  filename=$(echo "$line" | awk '{print $NF}')
+while read -r filename; do
   [[ -z "$filename" ]] && continue
-  local_path="$REPO_DIR/$filename"
-  if [ ! -f "$local_path" ]; then
+  if [[ ! -f "$REPO_DIR/$filename" ]]; then
+    echo "$filename was not found locally, adding to Download List" 
     FILES_TO_DOWNLOAD+=("$filename")
   else
     echo "✅ Skipping existing file: $filename"
   fi
 done <<< "$REMOTE_FILES"
 
-if [ ${#FILES_TO_DOWNLOAD[@]} -eq 0 ]; then
-  echo "📭 No new files to download."
-else
+if (( ${#FILES_TO_DOWNLOAD[@]} )); then
   echo "⬇️ Downloading ${#FILES_TO_DOWNLOAD[@]} new file(s)..."
-
-  sshpass -p "$SFTP_PASSWORD" sftp -o StrictHostKeyChecking=no -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" <<EOF
+  sshpass -p "$SFTP_PASSWORD" sftp -q -o StrictHostKeyChecking=no -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" <<EOF
 lcd $REPO_DIR
-$(for file in "${FILES_TO_DOWNLOAD[@]}"; do echo "get $file"; done)
+$(printf "get %s\n" "${FILES_TO_DOWNLOAD[@]}")
 bye
 EOF
-
   echo "✅ Download complete."
+else
+  echo "📭 No new files to download."
 fi
 
 echo "🎉 All done!"
@@ -110,50 +98,46 @@ echo "🎉 All done!"
 
 echo "🔍 Checking for missing backups on remote..."
 
-# (1) Grab the raw directory listing
+# (1) Grab only the .zip filenames, one per line, with absolutely no prompt noise.
 raw_listing=$(sshpass -p "$SFTP_PASSWORD" \
-  sftp -o StrictHostKeyChecking=no \
-       -P "$SFTP_PORT" \
-       "$SFTP_USER@$SFTP_HOST" <<-'EOF'
-    ls
+    sftp -q -o StrictHostKeyChecking=no \
+         -P "$SFTP_PORT" \
+         "$SFTP_USER@$SFTP_HOST" <<-'EOF'
+    ls -1 *.zip
     bye
 EOF
 )
 
-# (2) Extract only the filename column (last field)
-#     e.g. "-rw-r--r--    1 user group   12345 Jun 21 12:34 file.zip"
-#           becomes "file.zip"
-filenames=$(echo "$raw_listing" | awk '{print $NF}')
+# (2) Normalize CRs, drop blank lines, drop any 'sftp>' or echoed commands.
+mapfile -t remote_files < <(printf '%s\n' "$raw_listing" \
+    | tr -d '\r' \
+    | sed '/^[[:space:]]*$/d' \
+    | sed '/^sftp>/d' \
+    | sed '/^\(ls -1 \|bye\)$/d'
+)
 
-# (3) Filter to .zip files; if grep finds nothing, it returns exit code 1,
-#     so we OR it with true so our script doesn’t die, and yield an empty string.
-REMOTE_LIST=$(echo "$filenames" | grep -E '\.zip$' || true)
-
-
-if [[ -z "$REMOTE_LIST" ]]; then
-  echo "📭 Remote backup folder is empty. Uploading all local backups..."
+if [[ ${#remote_files[@]} -eq 0 ]]; then
+  echo "📭 Remote backup folder is empty. Uploading all local backups…"
 else
   echo "🗃️ Remote backups found:"
-  echo "$REMOTE_LIST"
+  printf '  %s\n' "${remote_files[@]}"
 fi
 
-# Check if any .zip files exist
-if ! ls "$REPO_DIR"/*.zip >/dev/null 2>&1; then
-  echo "📭 No local ZIP backups to upload."
-else
-  shopt -s nullglob
-  for f in "$REPO_DIR"/*.zip; do
-    filename=$(basename "$f")
-    if ! echo "$REMOTE_LIST" | grep -q "$filename"; then
-      echo "⬆️ Uploading missing file: $filename"
-      sshpass -p "$SFTP_PASSWORD" sftp -o StrictHostKeyChecking=no -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" <<EOF
+# (3) Walk local .zips and only upload the truly missing ones
+shopt -s nullglob
+for f in "$REPO_DIR"/*.zip; do
+  filename=${f##*/}
+  if printf '%s\n' "${remote_files[@]}" | grep -Fqx -- "$filename"; then
+    echo "✅ $filename already exists remotely. Skipping."
+  else
+    echo "⬆️ Uploading missing file: $filename"
+    sshpass -p "$SFTP_PASSWORD" sftp -q -o StrictHostKeyChecking=no -P "$SFTP_PORT" \
+      "$SFTP_USER@$SFTP_HOST" <<EOF
 put "$f"
 bye
 EOF
-    else
-      echo "✅ $filename already exists remotely. Skipping."
-    fi
-  done
-  shopt -u nullglob
-fi
+  fi
+done
+shopt -u nullglob
+
 echo "🚀 Remote sync complete."
