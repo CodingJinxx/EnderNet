@@ -56,7 +56,6 @@ echo Connecting to $RCON_HOST:$RCON_PORT with Password: $RCON_PASSWORD
 
 if [ "$SKIP_RCON" != "true" ]; then
 /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/say Beginning Backup"
-/usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/say BTW Connor stop sucking so much cock, your breath stinks"
 /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/save-off"
 /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/save-all"
   sleep 5
