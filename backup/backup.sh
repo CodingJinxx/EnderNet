@@ -65,7 +65,7 @@ sleep 5
 
 # Archive world safely
 cd "$DATA_DIR"
-zip -r "$BACKUP_DIR/$BACKUP_NAME" world/
+zip -r "$REPO_DIR/$BACKUP_NAME" world/
 
 # Re-enable saving
 if [ "$SKIP_RCON" != "true" ]; then
@@ -74,8 +74,8 @@ if [ "$SKIP_RCON" != "true" ]; then
 fi
 
 # Copy to REPO_DIR
-cp "$BACKUP_DIR/$BACKUP_NAME" "$REPO_DIR"
-cd "$REPO_DIR"
+# cp "$BACKUP_DIR/$BACKUP_NAME" "$REPO_DIR"
+# cd "$REPO_DIR"
 
 if [[ "${BACKUP_TARGET,,}" == "git" ]]; then
   echo "🔍 Pushing using Git"
