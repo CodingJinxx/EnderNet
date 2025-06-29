@@ -43,56 +43,52 @@ if ! command -v sshpass >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "🚀 Starting selective download to $REPO_DIR..."
-
-
-echo "📡 Getting list of remote files..."
 
 # (1) Grab the raw directory listing
 raw_listing=$(sshpass -p "$SFTP_PASSWORD" \
   sftp -o StrictHostKeyChecking=no \
        -P "$SFTP_PORT" \
        "$SFTP_USER@$SFTP_HOST" <<-'EOF'
-    ls -1 *.zip
+    ls
     bye
 EOF
 )
 
-# (3) Now raw_listing already has one filename per line, so just filter empties:
-REMOTE_FILES=$(echo "$raw_listing" | tail -n +2 \
-  | sed '/^[[:space:]]*$/d; $d')
+# (2) Extract only the filename column (last field)
+#     e.g. "-rw-r--r--    1 user group   12345 Jun 21 12:34 file.zip"
+#           becomes "file.zip"
+filenames=$(echo "$raw_listing" | awk '{print $NF}')
 
-if [[ -z "$REMOTE_FILES" ]]; then
-  echo "📭 No remote .zip files found."
+# (3) Filter to .zip files; if grep finds nothing, it returns exit code 1,
+#     so we OR it with true so our script doesn’t die, and yield an empty string.
+REMOTE_LIST=$(echo "$filenames" | grep -E '\.zip$' || true)
+
+# Add code here to find the latest filename in REMOTE_LIST, dont do anything if the REMOTE_LIST string
+# once you have the latest_file check if it exists in /repo, if it doesnt download it
+
+# --- pick the one ZIP with the biggest Unix-timestamp suffix ---
+if [[ -z "$REMOTE_LIST" ]]; then
+  echo "📭 No remote .zip files found; nothing to do."
 else
-  echo "🗂️ Remote files detected:"
-  echo "$REMOTE_FILES"
-fi
+  latest_file=$(printf "%s\n" $REMOTE_LIST \
+    | sort -t- -k2,2n \
+    | tail -n1)
 
-FILES_TO_DOWNLOAD=()
-while read -r filename; do
-  [[ -z "$filename" ]] && continue
-  if [[ ! -f "$REPO_DIR/$filename" ]]; then
-    echo "$filename was not found locally, adding to Download List" 
-    FILES_TO_DOWNLOAD+=("$filename")
+  echo "🔍 Latest remote file is: $latest_file"
+
+    # (3) check if it’s in /repo already; if not, download it
+  if [[ -f "/repo/$latest_file" ]]; then
+    echo "✔ Already have $latest_file in /repo"
   else
-    echo "✅ Skipping existing file: $filename"
-  fi
-done <<< "$REMOTE_FILES"
+    echo "⬇ Downloading $latest_file to /repo…"
 
-if (( ${#FILES_TO_DOWNLOAD[@]} )); then
-  echo "⬇️ Downloading ${#FILES_TO_DOWNLOAD[@]} new file(s)..."
-  sshpass -p "$SFTP_PASSWORD" sftp -q -o StrictHostKeyChecking=no -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" <<EOF
-lcd $REPO_DIR
-$(printf "get %s\n" "${FILES_TO_DOWNLOAD[@]}")
+     sshpass -p "$SFTP_PASSWORD" sftp -q -o StrictHostKeyChecking=no -P "$SFTP_PORT" \
+      "$SFTP_USER@$SFTP_HOST" <<EOF
+get "$latest_file"
 bye
 EOF
-  echo "✅ Download complete."
-else
-  echo "📭 No new files to download."
+  fi
 fi
-
-echo "🎉 All done!"
 
 /seed.sh
 
