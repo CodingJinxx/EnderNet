@@ -56,7 +56,6 @@ echo Connecting to $RCON_HOST:$RCON_PORT with Password: $RCON_PASSWORD
 
 if [ "$SKIP_RCON" != "true" ]; then
 /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/say Beginning Backup"
-/usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/say BTW Connor stop sucking so much cock, your breath stinks"
 /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/save-off"
 /usr/local/bin/mcrcon -H "$RCON_HOST" -P "$RCON_PORT" -p "$RCON_PASSWORD" "/save-all"
   sleep 5
@@ -66,7 +65,7 @@ sleep 5
 
 # Archive world safely
 cd "$DATA_DIR"
-zip -r "$BACKUP_DIR/$BACKUP_NAME" world/
+zip -r "$REPO_DIR/$BACKUP_NAME" world/
 
 # Re-enable saving
 if [ "$SKIP_RCON" != "true" ]; then
@@ -75,8 +74,8 @@ if [ "$SKIP_RCON" != "true" ]; then
 fi
 
 # Copy to REPO_DIR
-cp "$BACKUP_DIR/$BACKUP_NAME" "$REPO_DIR"
-cd "$REPO_DIR"
+# cp "$BACKUP_DIR/$BACKUP_NAME" "$REPO_DIR"
+# cd "$REPO_DIR"
 
 if [[ "${BACKUP_TARGET,,}" == "git" ]]; then
   echo "🔍 Pushing using Git"

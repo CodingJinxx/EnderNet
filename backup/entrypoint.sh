@@ -53,10 +53,10 @@ EOF
 chmod 0644 "$CRON_FILE"
 crontab "$CRON_FILE"
 
-echo  "📂 Transferring local backups into repo"
+# echo  "📂 Transferring local backups into repo"
 
-mkdir -p "$REPO_DIR"
-cp -r /backups/*.zip /repo
+# mkdir -p "$REPO_DIR"
+# cp -r /backups/*.zip /repo
 
 if [[ "${BACKUP_TARGET,,}" == "git" ]]; then
   echo "🔍 Initializing Git-based backup..."

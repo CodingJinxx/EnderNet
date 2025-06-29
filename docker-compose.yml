@@ -41,7 +41,7 @@ services:
       CONTROL_PORT: 8080
     volumes:
       - ./data:/data                    # Minecraft world directory
-      - ./world_backups:/backups                # Where zipped backups are staged
+      - ./world_backups:/repo           # Backups store local
       - ./ssh:/ssh                      # SSH private key for Git access
       - ./sftp/SFTP_PASSWORD:/sftp/SFTP_PASSWORD:ro
       - ./replaced_worlds:/replaced_worlds  # Optional: store replaced worlds
