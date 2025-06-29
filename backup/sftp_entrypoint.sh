@@ -84,6 +84,7 @@ else
 
      sshpass -p "$SFTP_PASSWORD" sftp -q -o StrictHostKeyChecking=no -P "$SFTP_PORT" \
       "$SFTP_USER@$SFTP_HOST" <<EOF
+lcd /repo
 get "$latest_file"
 bye
 EOF

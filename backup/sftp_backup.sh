@@ -52,25 +52,30 @@ filenames=$(echo "$raw_listing" | awk '{print $NF}')
 #     so we OR it with true so our script doesn’t die, and yield an empty string.
 REMOTE_FILENAMES=$(echo "$filenames" | grep -E '\.zip$' || true)
 
+# --- pick the one ZIP with the biggest Unix-timestamp suffix ---
+if [[ -z "$REMOTE_FILENAMES" ]]; then
+  echo "📭 No remote .zip files found; nothing to do."
+else
+  latest_file=$(printf "%s\n" $REMOTE_FILENAMES \
+    | sort -t- -k2,2n \
+    | tail -n1)
 
-  echo "📂 Checking for missing files..."
+  echo "🔍 Latest remote file is: $latest_file"
 
-  # Loop through each remote file and check if it's already local
-  for filename in $REMOTE_FILENAMES; do
-  LOCAL_PATH="$REPO_DIR/$filename"
-  if [ ! -f "$LOCAL_PATH" ]; then
-      echo "⬇️  Fetching missing file: $filename"
-      sshpass -p "$SFTP_PASSWORD" sftp -o StrictHostKeyChecking=no -P "$SFTP_PORT" "$SFTP_USER@$SFTP_HOST" <<EOF
-get "$filename" "$LOCAL_PATH"
+    # (3) check if it’s in /repo already; if not, download it
+  if [[ -f "/repo/$latest_file" ]]; then
+    echo "✔ Already have $latest_file in /repo"
+  else
+    echo "⬇ Downloading $latest_file to /repo…"
+
+     sshpass -p "$SFTP_PASSWORD" sftp -q -o StrictHostKeyChecking=no -P "$SFTP_PORT" \
+      "$SFTP_USER@$SFTP_HOST" <<EOF
+lcd /repo
+get "$latest_file"
 bye
 EOF
-  else
-      echo "✅ File already exists: $filename"
   fi
-  done
-
-  echo "🎉 Done fetching missing files."
-  exit 0
+fi
 fi
 
 if [[ "$ACTION" == "push" ]]; then
